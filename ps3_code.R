@@ -1,6 +1,6 @@
 # Template of R script to answer problem set
-# Group number: 
-# Group composition: A, B, and C
+# Group number: 8
+# Group composition: Claudia Ambrosino, Flavia Grasso, and Titouan Renault
 
 # Get the username
 user <- Sys.info()["user"]
@@ -10,9 +10,9 @@ print(user)
 if (user == "erick") {
   filepath <- "/home/erick/TEMP/"
 } else if (user == "titouanrenault") {
-  filepath <- "/Users/titouanrenault/Desktop/Master/micrometrics/Problem set 2/files"
+  filepath <- "/Users/titouanrenault/Desktop/Master/micrometrics/Problem set 2"
 } else if (user == "B") {
-  filepath <- "/FILE/PATH/B/"
+  filepath <- "/Users/grasso/Documents/Bocconi ESS/2024-2025/Semester 2/20295 - Microeconometrics/Problem Set 2"
 } else if (user == "C") {
   filepath <- "/FILE/PATH/C/"
 } else {
@@ -27,20 +27,10 @@ library(grf)
 library(dplyr)
 library(labelled)
 library(ggplot2)
+library(tidyr)
+
 #Download data
-ps3 = read.csv(file.path(filepath, "expanded_data.csv"))
-
-#Create label for name of variables in plots
-var_label(ps3$education_rate) = "Education Rate (%)"
-var_label(ps3$unemployment_rate) = "Unemployment Rate (%)"
-var_label(ps3$religious_adherence) = "Religious Adherence (%)"
-var_label(ps3$women_labor_force_participation) = "Women participating in labor market (%)"
-
-label_names <- c("education_rate" = "Education (%)",
-                 "religious_adherence"= "Religious Adherence (%)",
-                "women_labor_force_participation" = "Women in labor market (%)"
-)
-
+ps3 = read.csv(file.path(filepath, "files/expanded_data.csv"))
 
 #-------------------------------------------------------------------------------
 #EXERCISE 2
@@ -48,61 +38,87 @@ label_names <- c("education_rate" = "Education (%)",
 
 # Question 1.a
 
-#Create treatment: 1 if year>lfdivlaw
-ps3$treated = ifelse(ps3$year>ps3$lfdivlaw, 1, 0)
-
 #Create binary for urbanization (tau forest does not accept non-numeric variable)
-ps3$urban_bin =ifelse(ps3$urbanization == "Urban", 1, 0)
+ps3$urban_bin = ifelse(ps3$urbanization == "Urban", 1, 0)
+
+#Create dummy for state
+ps3$st_bin = as.integer(relevel(factor(ps3$st), ref = "AK")) - 1
+
+#Structure the dataset to compute the difference between 1978 and 1968
+
+ps3_diff <- ps3 %>%
+  filter(lfdivlaw %in% c(1969, 1970, 1971, 1972, 1973, 2000))%>% #keep only the year relevant for analysis (as in question1)c))
+  select(county_id, st, year, div_rate_sim, lfdivlaw, everything()) %>%
+  mutate(treated = ifelse(lfdivlaw <= 1973, 1, 0))%>% #create treatment 
+  pivot_wider(
+    names_from = year,
+    values_from = c(div_rate_sim, education_rate, childcare_availability, 
+                    unemployment_rate, median_income, urbanization,
+                    marriage_rate, religious_adherence, alcohol_consumption, 
+                    domestic_violence_rate, women_labor_force_participation, 
+                    housing_cost, crime_rate, social_services_spending, treated, urban_bin, st_bin)
+  )%>%
+  mutate(
+    delta_divorce = div_rate_sim_1978 - div_rate_sim_1968 #compute diff after - before
+  )
+
+#Create label of variables for plot
+
+label_names <- c("education_rate_1968" = "Education (%)",
+                 "religious_adherence_1968"= "Religious Adherence (%)",
+                 "women_labor_force_participation_1968" = "Women in labor market (%)", 
+                 "childcare_availability_1968" = "Childcare availability", 
+                 "marriage_rate_1968" = "Marriage (%)", 
+                 "unemployment_rate_1968" = "Unemployment (%)", 
+                 "urban_bin_1968" = "Urbanization", 
+                 "alcohol_consumption_1968" = "Alcohol consumption", 
+                 "median_income_1968" = "Median income", 
+                 "social_services_spending_1968" = "Social services spending", 
+                 "housing_cost_1968" = "Housing cost",
+                 "crime_rate_1968" = "Crime rate (%)", 
+                 "domestic_violence_rate_1968" = "Domestic violence (%)"
+)
+
 
 # Outcome variable
-Y <- ps3$div_rate_sim
+Y <- ps3_diff$delta_divorce
 
 # Treatment indicator
-W <- ps3$treated
+W <- ps3_diff$treated_1968
 
-#Covariates
-X <- ps3[, c("education_rate", "childcare_availability", "unemployment_rate", "median_income", 
-             "marriage_rate", "religious_adherence", "alcohol_consumption",
-             "domestic_violence_rate", "women_labor_force_participation",
-             "housing_cost", "crime_rate", "social_services_spending", "urban_bin")] ##tbc urbanisation
+#Covariates: we keep only covariates for year 1968, to see what are the drivers of heterogeneity.
+#We remove 1978 covariates, because they may also have changed as a result of the policy. 
+X <- ps3_diff[, c("education_rate_1968", "childcare_availability_1968", "unemployment_rate_1968", "median_income_1968", 
+             "marriage_rate_1968", "religious_adherence_1968", "alcohol_consumption_1968",
+             "domestic_violence_rate_1968", "women_labor_force_participation_1968",
+             "housing_cost_1968", "crime_rate_1968", "social_services_spending_1968", "urban_bin_1968")] #check urban and state binary 
 
 
 
 #estimate causal forest
-tau.forest <- causal_forest(X, Y, W, num.trees = 2000)
+tau.forest <- causal_forest(X, Y, W)
 #Compute  ATE
 ate <- average_treatment_effect(tau.forest)
 print(ate)
 #estimate    std.err 
-#0.11065390 0.03587485 
+#0.03769186 0.07154094 
 
-# Comment: The average treatment effect (ATE) estimated using the causal forest is 0.11, 
-# and it is statistically significantly different from zero at the 5% level. In question 1.c), 
+# Comment: The average treatment effect (ATE) estimated using the causal forest is 0.038, 
+# and it is not statistically significantly different from zero at the 5% level. In question 1.c), 
 # using the DiD specification, we obtained an estimate of 0.03 for the treatment effect, 
-# which was not statistically significant. Compared to DiD, the causal forest estimate 
-# is notably higher, highlighting a discrepancy between the two approaches. 
-# This inconsistency may arise due to differences in model specification. Causal 
-#forests accommodate various functional forms between treatment and outcome, 
-#allowing for flexible estimation of heterogeneous treatment effects.
+# which was not statistically significant. We obtain a similar estimate using the two approaches.
 
+#Question 1.b)i)
 
-#Question 1.b 
-
-
-#Most important variable is religious adherence (6). Then women_labor_force_participation (9), education_rate (1). 
-#Other variables seem significantly less important. 
-
-# Question 1.b
-
-#Compute best-linear projection (BLP) of conditionnal average treatment effect
+#Compute best-linear projection (BLP) of conditional average treatment effect
 blp <- best_linear_projection(tau.forest, X)
 blp
 # The best linear projection fits a linear approximation of the conditional average treatment effects (CATEs) 
 # on the covariates in our dataset. This is useful for identifying which variables are most strongly associated 
 # with heterogeneity in the treatment effect.
 # 
-# In our case, the most relevant covariates are: education rate, religious adherence, and women’s labor force 
-# participation. All three are statistically significantly different from zero. This suggests that higher levels 
+# In our case, the most relevant covariates are: domestic violence rate, religious adherence, and women’s labor force 
+# participation. All three variables are statistically significantly different from zero. This suggests that higher levels 
 # of education, stronger religious adherence, and greater female labor force participation are associated 
 # with higher treatment effects.
 #
@@ -113,7 +129,7 @@ blp
 #Obtain variable importance
 vi = variable_importance(tau.forest)
 #Set variable importance relative to the largest (and rescale to 100)
-vi_relative = (vi /max(vi))*100
+vi_relative = (vi /max(vi))*100 
 
 #Create df to plot variable importance
 vi_df <- data.frame(
@@ -122,13 +138,17 @@ vi_df <- data.frame(
 ) %>% arrange(-Importance)
 
 #Final Plot using ggplot
-ggplot(vi_df, aes(x = Importance, y = reorder(Variable, -Importance))) +
+variable_importance = ggplot(vi_df, aes(x = Importance, y = reorder(Variable, -Importance))) +
   geom_bar(stat = "identity", fill = "blue") +
   labs(x = "Variable Importance", y = NULL,
-       title = "Variable Importance (relative to max)") +theme_classic()
+       title = "Variable Importance in 1968 (relative to max)", 
+       labeller = labeller(Variable = label_names)) +theme_classic()+
+  scale_y_discrete(labels = label_names)
 
+#Save to the computer
+ggsave(file.path(filepath, "output/variable_importance.pdf"))
 
-#Compute Targeting Operator Characteristic;
+##Question 1.b)ii): Compute Targeting Operator Characteristic
 
 # Split sample into train and eval
 n <- nrow(X)
@@ -145,7 +165,10 @@ eval.forest <- causal_forest(X[-train, ], Y[-train], W[-train])
 rate <- rank_average_treatment_effect(eval.forest,
                                       predict(train.forest, X[-train, ])$predictions)
 rate
+pdf(file.path(filepath,"output/TOC_plot.pdf")) # Open PDF device
 plot(rate, main = "Targeting Operator Characteristic (TOC)")
+dev.off()
+
 
 # Comment: The TOC (Targeting Operator Characteristic) is the area under the curve of the Rank-Weighted Average Treatment Effect (RATE).
 # The RATE is a metric that measures how well the CATE estimator ranks units according to their estimated treatment benefit.
@@ -153,10 +176,11 @@ plot(rate, main = "Targeting Operator Characteristic (TOC)")
 # estimated CATEs, compared to the overall average treatment effect (ATE).
 # 
 # We observe that targeting the most effective states (based on their estimated CATE) significantly increases the treatment effect.
-# For example, treating the top 20% of states with the largest estimated CATEs would lead to an ATE of 0.7, 
-# whereas treating the bottom 80% would yield a much lower ATE of only 0.1.
+# For example, treating the top 20% of states with the largest estimated CATEs would lead to an ATE of approximately 0.6, 
+# whereas treating the bottom 80% would yield a much lower ATE of only 0.1.When we treat 
+# the whole sample, the ate becomes almost 0. 
 
-#Plot CATE by distribution of variables that could drive heterogeneity:
+#Question 1)b)iii): Plot CATE by distribution of variables that could drive heterogeneity
 
 library(ggplot2)
 library(dplyr)
@@ -165,47 +189,65 @@ library(tidyr)
 # Predict CATEs using out-of-bag estimates
 tau.hat.oob <- predict(tau.forest)
 # Add the CATE predictions to your original data
-ps3$CATE <- tau.hat.oob$predictions
+ps3_diff$CATE <- tau.hat.oob$predictions
 
 # Pick variables chosen in the first step (variable importance) to explore heterogeneity
-hetero_vars <- c("education_rate", "religious_adherence", "women_labor_force_participation")
+hetero_vars <- c("religious_adherence_1968", 
+                 "women_labor_force_participation_1968", "domestic_violence_rate_1968")
 
 # Reshape data to long format for faceted plotting
-long_data <- ps3 %>%
-  select("CATE", "education_rate", "religious_adherence", "women_labor_force_participation")%>%
+long_data <- ps3_diff %>%
+  select("CATE", "religious_adherence_1968", "women_labor_force_participation_1968", 
+         "domestic_violence_rate_1968")%>%
   pivot_longer(cols = all_of(hetero_vars), names_to = "Variable", values_to = "Value")
 
 # Plot: one plot, multiple facets
 ggplot(long_data, aes(x = Value, y = CATE)) +
   geom_smooth(method = "loess", color = "blue")+
-  facet_wrap(~ Variable, scales = "free_x", labeller = labeller(Variable = label_names)) +
+  facet_wrap(~ Variable, scales = "free_x", labeller = labeller(Variable = label_names), 
+             ncol = 2) +
   theme_minimal() +
-  labs(title = "CATEs by Potential Heterogeneity Drivers",
+  labs(title = "CATEs by Potential Heterogeneity Drivers (1968)",
        x = "Value of Variable",
        y = "Estimated CATE")+
   theme_classic()
 
+ggsave(file.path(filepath, "output/heterogeneity_drivers.pdf"))
+
 # Question 1.c
 
 # We found strong evidence of heterogeneous treatment effects in the previous analysis.
-# The Best Linear Projection (BLP) showed that key variables—such as education levels,
-# religious adherence, and the share of women in the labor market significantly explain
+# The Best Linear Projection (BLP) showed that key domestic violence, religious 
+# adherence, and the share of women in the labor market significantly explain
 # the variation in treatment effects across observations.
 #
 # The Targeting Operator Characteristic (TOC) curve further supports this finding. It
 # demonstrates that the average treatment effect varies across different fractions of the
 # population, ranked by their predicted responsiveness to the treatment. In particular,
 # states in the top 10%—those expected to increase the most unilateral divorce as a result
-#of the law—experience the highest treatment effects, with the effect decreasing 
+#of the law — experience the highest treatment effects, with the effect decreasing 
 #gradually across lower-ranked groups.This highlights the presence of heterogeneity 
 #and suggests that the unilateral divorce law policy had varying effects on states 
 #depending on the composition of their population.
 #
 # While the Average Treatment Effect (ATE) estimated in Question 1.a) was approximately
-# 0.11, the Conditional Average Treatment Effects (CATEs) vary considerably across
-# different values of key covariates. For instance, in counties where 90% of individuals
-# hold a university degree, the CATE reaches around 0.25. This indicates that the treatment
-# has a stronger impact in areas with higher education levels.
+# 0.037, the Conditional Average Treatment Effects (CATEs) vary  across
+# different values of key covariates. For instance, in state where the religious adherence
+#was of 20% of individuals the CATE reaches around 0.4. This indicates that the treatment has 
+#a stronger impact in areas with lower religious adherence in 1968. This finding is consistent
+#with the previous results, particularly the variable importance graph, where religious adherence 
+#emerged as by far the most important driver of treatment effect heterogeneity. 
+#
+# However, when computing the average treatment effect across different values 
+# of the domestic violence rate, we do not find strong evidence of heterogeneous 
+# treatment effects — although the effect tends to increase slightly with higher 
+# rates of domestic violence.
+#
+# In states where the female labor force participation rate is low (around 40%), 
+# the reform appears to reduce the number of divorces. The effect becomes positive 
+# once the participation rate reaches approximately 50%, but plateaus beyond 60%, 
+# indicating no further increase in the treatment effect.
+
 
 #Question 1.d
 
@@ -213,21 +255,20 @@ tau.forest_2 = causal_forest(X, Y, W, honesty = FALSE)
 #Compute new ATE
 ate_2 = average_treatment_effect(tau.forest_2)
 ate_2
-
 #estimate    std.err 
-#0.11529298 0.03562229 
+#0.03161632 0.07152127
 #The estimate of the ate and standard error is almost unchanged. 
 
 #Compute BLP
 blp_2 <- best_linear_projection(tau.forest_2, X)
 blp_2
 
-#The best linear remains unchanged. Education_rate, religous adherence and women labor
+#The best linear remains unchanged. domestic violence, religious adherence and women labor
 #force participation are still the three variables statistically different from 0. 
 
 # Comment: 
 # We obtain the same ATE. When we do not use honest causal trees, we do not split the
-# training data into separate subsets for determining the tree structure and estimating the treatment effect
+# data into separate subsets for determining the tree structure and estimating the treatment effect
 # within each leaf.
 # This makes the model appear "more precise" in-sample, but may lead to bias in the 
 # average treatment effect due to overfitting. 
