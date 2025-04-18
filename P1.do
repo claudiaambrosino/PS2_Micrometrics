@@ -48,8 +48,6 @@ Because divorce rates are group averages for each state, we want to account for 
 We use analytic weights when working with group-mean observations, this ensures that results are representative and it allows to give relatively more weight to the averages computed on larger samples, which would result in more precise estimates of divorce rates.
 */
 
-*Cluster standard errors at the state level in regressions
-
 *****************************************************************************
 /*Question b*/
 *****************************************************************************
@@ -73,6 +71,8 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	ytitle("Yearly Divorce Rates (per 1000 people)") ///
 	xline(1968 1988, lcolor(gray) lpattern(dash)) ///
 	xsize(12) ysize(8)
+	
+*Save graph
 
 //Second graph
 use "$data/pset_4.dta", clear
@@ -100,6 +100,7 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	xline(1969, lcolor(gray) lpattern(dash)) ///
 	xsize(12) ysize(8)
 
+*Save graph
 *Add comment
 
 /* Do your results support the assumption of parallel trends? 
@@ -217,7 +218,6 @@ save "$data/Epset_4.dta", replace
 *****************************************************************************
 /*Question f*/
 *****************************************************************************
-
 * Create simulated observations
 clear
 set obs 6
@@ -243,6 +243,7 @@ reg Y4 D i.state i.year
 outreg2 using "$output/tables_f.xls", title("Regressions F") symbol() excel append
 
 * Is it possible to estimate the treatment coefficient consistently in each of these cases?
+* In settings with staggered treatment implementation, regressions relying on a single treatment coefficient may yield biased estimates. In our simulated dataset, we construct four potential outcomes to examine this issue. We want to identify the treatment effect by estimating the coefficient on a treatment dummy variable. The first simulated outcome, Y, simulates a situation where outcome is defined in the same way for state 1 and 2, despite the staggered treatement timing. Both states experience an outcome increase of 0.05 due to treatement. The corresponding regression correctly estimate this result, returning a coefficient of 0.0566 significant at the 10% level. In the second specification (Y2), heterogeneity is introduced: while the treatment effect remains 0.05 in State 1, State 2 experiences an additional increase of 0.3 in the outcome of interest in year 3. This extra shift may reflect either state-specific time trends or dynamic treatment effects. Similarly, the third and fourth outcomes (Y3 and Y4) introduce additional increases of 0.4 and 0.5 in State 2 relative to State 1 in year 3. This heterogenity induces a bias in the treatement coefficient estimate, which becomes negative and statistically insignifican. Moreover, the bias seems to be increasing with twith the size of the uncontrolled-for differential effect in State 2. 
 
 *****************************************************************************
 /*Question g*/
@@ -250,13 +251,35 @@ outreg2 using "$output/tables_f.xls", title("Regressions F") symbol() excel appe
 *ssc install twowayfeweights, replace
 *ssc install gtools, replace
 
+log using "$output/results.g", replace
 twowayfeweights Y state year D, type(feTR)
 twowayfeweights Y2 state year D, type(feTR)
 twowayfeweights Y3 state year D, type(feTR)
 twowayfeweights Y4 state year D, type(feTR)
+log close
 
 * Can you explain why the sign of the estimated effect has changed between the regression on Y and the one on Y 4?
 
+*
+*command estimates the weights and sensitivity measures attached to the fixed-effects regression under the common trends assumption. 
+*With a TWFE regression, the estimate of the effect of a treatement on an outcome is given by the estimated coeffciient of the treatement dummy. The estimated coefficient is a weighted sum of several DiD. Each DID compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in case the control group has already been treated at the moment when the treatement one switches to treated, 
+*The negative weights are an issue when the ATEs are heterogeneous across groups or periods. Then, one could have that β fe is negative while all the ATEs are positive, so β fe is not robust to heterogeneous effects
+
+The coefficients of the treatement dummies estimated by the respective regressions are negative, decreasing and not statistically significant. Meaning that as the additional effect on outcome in state 2 given by the previous implementation increases, the effect on outcome attributed by the treatement dummy 
+
+
+*each version simulates a progressively larger deviation from the parallel trends assumption: state-specific time trends
+These regressions include only a dummy for treatment (D), without adjusting for differing trends across states.
+simulate increasingly stronger upward trends in state 2 in year 3.
+However, state 2 is still in the control group in that year
+Because state 2 (control) sees a jump in outcomes not due to treatment, it makes the treated state's increase look smaller by comparison.
+estimated treatment effect is biased downward
+
+The regression can't separate the treatment effect from the uncontrolled-for trend, so it attributes part of the difference incorrectly, assuming ll treatment/control groups follow the same trend in the absence of treatment.
+
+If control and treatment groups have different underlying time trends, and you don't model those trends, you can get biased treatment effects.
+
+In year 3, the regression is comparing state 1's change (from untreated → treated) to state 2's change (already treated → still treated). Any additional change in state 2 (e.g., due to trend or treatment dynamics) will be wrongly attributed as the counterfactual for state 1.
 
 *****************************************************************************
 /*Question h*/
@@ -309,6 +332,7 @@ reghdfe div_rate D_* D0-D15 tt_linear_* tt_square_* [aweight=stpop], absorb (st_
 estimates store reg3
 
 *Interpret the results of all 3 regressions. What can we see in the behaviour of divorce rates through this analysis that was not possible in the single coefficient analysis?
+
 
 *****************************************************************************
 /*Question j*/
@@ -367,4 +391,8 @@ coefplot matrix(C[1]), se(C[2]) keep(D_* D*) vertical yline(0) xtitle("Years aft
 				title("Divorce rate") xlabel(, alternate)
 *Save graph 
 
-*Are your results consistent with the ones from the original paper? Briefly explain what kind of correction your proposed algorithm is performing.
+*Are your results consistent with the ones from the original paper? 
+
+
+*Briefly explain what kind of correction your proposed algorithm is performing.
+* Sun and Abraham (2021) underline the fact in settings with heterogenous treatement effects and variation in treatement timing across units, using the estimates of relative periods coefficients as measures of dynamic treatement effects may lead to misleading results. Specifically, each of these coefficients can be expressed as a weighted average of cohort-specific effects from both its own relative period and other relative periods; therefore, the estimate is contaminated by effects from other periods and other cohorts. If treatement is heterogenous across cohorts in terms of effect or timing, the coefficient estimate will no longer be a reliable indicator of treatement effect at relative time l only. To correct for this, the authors propose interaction-weighted estimators (IW). IW estimators are formed by first estimating cohort average treatement effects for each cohort at the relative time l, and calculating their weighted average using as weights each cohort's share. The algorithm in eventstudyinteract automates the estimation of these weights and returns estimators that are robust to heterogenous treatement effects. 
