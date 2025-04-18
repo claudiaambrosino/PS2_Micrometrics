@@ -18,8 +18,8 @@ if ("`user'" == "user") {
     global filepath "C:/Users/user/Desktop/Microeconometrics/Problem set 2"
 }
 
-if ("`user'" == "C") {
-    global filepath "/FILE/PATH/C/"
+if ("`user'" == "titouanrenault") {
+    global filepath "/Users/titouanrenault/Desktop/Master/micrometrics/Problem set 2"
 }
 
 
@@ -43,9 +43,11 @@ display "$output"
 ******************************************************************************
 ******************************************************************************
 
+
 ******************************************************************************
 /* Question a. 
 ******************************************************************************
+
 Because divorce rates are group averages for each state, we want to account for how many observations (individuals) were used to compute it. According to the weighting procedures summary, we should use analytic weights, weighting according to stpop.
 We use analytic weights when working with group-mean observations, this ensures that results are representative and it allows to give relatively more weight to the averages computed on larger samples, which would result in more precise estimates of divorce rates.
 */
@@ -73,7 +75,10 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	xlabel(1956(2)1998, angle(forty_five)) ///
 	ytitle("Yearly Divorce Rates (per 1000 people)") ///
 	xline(1968 1988, lcolor(gray) lpattern(dash)) ///
-	xsize(12) ysize(8)
+	xsize(12) ysize(8) 
+
+graph export "$output/graph_b1.png", replace
+
 
 //Second graph
 use "$data/pset_4.dta", clear
@@ -99,7 +104,10 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	xlabel(1956(2)1979, angle(forty_five)) ///
 	ytitle("Yearly Divorce Rates (per 1000 people)") ///
 	xline(1969, lcolor(gray) lpattern(dash)) ///
-	xsize(12) ysize(8)
+	xsize(12) ysize(8) 
+	
+graph export "$output/graph_b2.png", replace
+
 
 
 /* Do your results support the assumption of parallel trends? 
@@ -121,9 +129,11 @@ gen POST_UNILATERAL = POST*UNILATERAL
 
 * Regression i: pooled OLS
 reg div_rate POST POST_UNILATERAL [aweight = stpop], vce(robust)
+outreg2 using "$output/tables_c.xls", title("Regression C.i-ii") symbol() excel replace
 
 *Regression ii: diff-in-diff specification
 reg div_rate POST UNILATERAL POST_UNILATERAL [aweight=stpop], vce(robust)
+outreg2 using "$output/tables_c.xls", title("Regression C.i-ii") symbol() excel append
 
 
 /* The coefficients between regression i and ii have significant differences. In the pooled OLS, the estimate for post_unilateral is significantly greater than 0, suggesting that the introduction of the unilateral law has a positive effect on divorce rates. However, when we include the variable unilateral, accounting for state fixed effects, the estimate for post_unilateral reduces to -.0050148, and becomes insignificant (p-value=0.993). The difference-in-difference accounts for pre-existing differences in divorce rates between states whereas the pooled OLS estimates the difference in outcomes between the treatment and control groups in 1978 (the post year). This positive bias comes from selection of states in the treatment group, as states adopting the law generally faced higher divorce rates. */
@@ -191,12 +201,20 @@ forval i=1/51{
 
 /* Regression i*/
 reg div_rate IMP_UNILATERAL i.st_id i.year [aweight = stpop], vce(cluster st_id)
+outreg2 using "$output/tables_e.xls", title("Regression E.i-iii") symbol() keep(IMP_UNILATERAL) excel replace
+
 
 /* Regression ii */
 reg div_rate IMP_UNILATERAL i.st_id i.year t_* [aweight = stpop], vce(cluster st_id)
+outreg2 using "$output/tables_e.xls", title("Regression E.i-iii") symbol() keep(IMP_UNILATERAL) excel append
+
 
 /* Regression iii */
 reg div_rate IMP_UNILATERAL i.st_id i.year t_* t2_* [aweight = stpop], vce(cluster st_id)
+outreg2 using "$output/tables_e.xls", title("Regressions E.i-iii") symbol() keep(IMP_UNILATERAL) excel append
+
+save "$data/Epset_4.dta", replace
+
 
 
 /* The first regression controls for state and year differences yiels an estimate of -.055 suggesting that the introduction of unilateral laws decreased divorce rates by .055‰ but the result is very insignificant (p-value = .718). There is no clear evidence that unilateral divorce law had an effect on divorce rates in this regression.
@@ -207,3 +225,5 @@ Because the initial regression returns such different coefficients than the seco
 
 The estimates would be the same if the parallel trends assumption held perfectly, as the divorce time trends would be identical across reformed and control states.  
  */
+ 
+ 
