@@ -18,8 +18,8 @@ if ("`user'" == "user") {
     global filepath "C:/Users/user/Desktop/Microeconometrics/Problem set 2"
 }
 
-if ("`user'" == "C") {
-    global filepath "/FILE/PATH/C/"
+if ("`user'" == "titouanrenault") {
+    global filepath "/Users/titouanrenault/Desktop/Master/micrometrics/Problem set 2"
 }
 
 
@@ -34,6 +34,8 @@ display "$data"
 global output "${filepath}/output"
 display "$output"
 
+
+
 ******************************************************************************
 ******************************************************************************
                                 *Exercise 1*
@@ -41,12 +43,15 @@ display "$output"
 ******************************************************************************
 ******************************************************************************
 
+
 ******************************************************************************
 /* Question a. 
 ******************************************************************************
+
 Because divorce rates are group averages for each state, we want to account for how many observations (individuals) were used to compute it. According to the weighting procedures summary, we should use analytic weights, weighting according to stpop.
 We use analytic weights when working with group-mean observations, this ensures that results are representative and it allows to give relatively more weight to the averages computed on larger samples, which would result in more precise estimates of divorce rates.
 */
+
 
 *****************************************************************************
 /*Question b*/
@@ -70,9 +75,10 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	xlabel(1956(2)1998, angle(forty_five)) ///
 	ytitle("Yearly Divorce Rates (per 1000 people)") ///
 	xline(1968 1988, lcolor(gray) lpattern(dash)) ///
-	xsize(12) ysize(8)
-	
-*Save graph
+	xsize(12) ysize(8) 
+
+graph export "$output/graph_b1.png", replace
+
 
 //Second graph
 use "$data/pset_4.dta", clear
@@ -98,38 +104,41 @@ twoway (line div_rate1 year,  lcolor(black) lpattern(solid)) ///
 	xlabel(1956(2)1979, angle(forty_five)) ///
 	ytitle("Yearly Divorce Rates (per 1000 people)") ///
 	xline(1969, lcolor(gray) lpattern(dash)) ///
-	xsize(12) ysize(8)
+	xsize(12) ysize(8) 
+	
+graph export "$output/graph_b2.png", replace
 
-*Save graph
-*Add comment
+
 
 /* Do your results support the assumption of parallel trends? 
-seems ok - aussi dans le 2e dis que apres 1978 la diff a monte tabdis qu'avant ct assez stable
+The first graph compares states that reformed in 1968 and 1988 and those that did not. We see that before the wave of reform, both samples seem to follow the same upward trend, supporting the parallel trends assumption. 
+The second graph compares states that adopted the unilateral divorce law between 69 and 73 to the late reform states, that adopted it in 2000. Again, the trend in divorce rates seems to be the same across the control and reform states, supporting the parallel trends assumption.  
 */
 
 *****************************************************************************
 /*Question c*/
 *****************************************************************************
+
 use "$data/pset_4.dta", clear
 
 keep if year == 1968 | year == 1978
-keep if (lfdivlaw >=1968 & lfdivlaw<=1973) | (lfdivlaw==2000) //you should compare states adopting the unilateral divorce law between 1969 and 1973 to the ones that introduced it in the year 2000."
-
+keep if (lfdivlaw >=1968 & lfdivlaw<=1973) | (lfdivlaw==2000)
 gen UNILATERAL = (lfdivlaw >= 1969 & lfdivlaw <= 1973)
 gen POST = (year==1978)
 gen POST_UNILATERAL = POST*UNILATERAL
 
-/*Point i*/
-
-*Pooled OLS 
+* Regression i: pooled OLS
 reg div_rate POST POST_UNILATERAL [aweight = stpop], vce(robust)
-*Should we save the output?
+outreg2 using "$output/tables_c.xls", title("Regression C.i-ii") symbol() excel replace
 
-*Diff-in-diff specification
+*Regression ii: diff-in-diff specification
 reg div_rate POST UNILATERAL POST_UNILATERAL [aweight=stpop], vce(robust)
+outreg2 using "$output/tables_c.xls", title("Regression C.i-ii") symbol() excel append
 
-*Based on the graphs you created in section (a), could you say something about the difference in the coefficients from regressions (i) and (ii)? What is the effect of introducing unilateral divorce laws according to this analysis?
 
+/* The coefficients between regression i and ii have significant differences. In the pooled OLS, the estimate for post_unilateral is significantly greater than 0, suggesting that the introduction of the unilateral law has a positive effect on divorce rates. However, when we include the variable unilateral, accounting for state fixed effects, the estimate for post_unilateral reduces to -.0050148, and becomes insignificant (p-value=0.993). The difference-in-difference accounts for pre-existing differences in divorce rates between states whereas the pooled OLS estimates the difference in outcomes between the treatment and control groups in 1978 (the post year). This positive bias comes from selection of states in the treatment group, as states adopting the law generally faced higher divorce rates. */
+ 
+ 
 *****************************************************************************
 /*Question d*/
 *****************************************************************************
@@ -148,7 +157,7 @@ sum div_rate if UNILATERAL==0 & POST==0 [aweight=stpop]
 scalar AVG_Y_0_0 = r(mean)
 
 matrix TABLE_1 = J(3,3,.)
-matrix colnames TABLE_1 = "UNILATERAL=1" "UNILATERAL=0" "Difference 2"
+matrix colnames TABLE_1 = "UNILATERAL=1 " "UNILATERAL=0 " "Difference 2"
 matrix rownames TABLE_1 = "POST=1" "POST=0" "Difference 1"
 
 matrix TABLE_1[1,1] = AVG_Y_1_1   // POST = 1, UNILATERAL = 1
@@ -168,7 +177,6 @@ matrix list TABLE_1
 putexcel set "$output/TABLE_1.xlsx", sheet("DiD Matrix") replace
 putexcel A2=matrix(TABLE_1), names nformat(number_d2) 
 
-*Adjust format
 
 *****************************************************************************
 /*Question e*/
@@ -178,42 +186,46 @@ use "$data/pset_4.dta", clear
 
 encode st, gen(st_id)
 drop st
-sort st_id year
-
 xtset st_id year
-keep if year >= 1956 & year <= 1988
 
+keep if year >= 1956 & year <= 1988
 gen IMP_UNILATERAL = (lfdivlaw <= year)
+
+forval i=1/51{
+	bysort st_id (year): gen t_`i'=_n if st_id==`i' 
+	replace t_`i'=0 if t_`i'==.
+	bysort st_id (year): gen t2_`i'=_n^2 if st_id==`i' 
+	replace t2_`i'=0 if t2_`i'==.
+}
+
 
 /* Regression i*/
 reg div_rate IMP_UNILATERAL i.st_id i.year [aweight = stpop], vce(cluster st_id)
 outreg2 using "$output/tables_e.xls", title("Regression E.i-iii") symbol() keep(IMP_UNILATERAL) excel replace
 
+
 /* Regression ii */
-
-*Get number of states
-ssc install distinct
-distinct st_id 
-
-qui forval i=1/51{
-	bysort st_id (year): gen tt_linear_`i'=_n if st_id==`i' 
-	replace tt_linear_`i'=0 if tt_linear_`i'==.
-}
-
-reg div_rate IMP_UNILATERAL i.year i.st_id  tt_linear_* [aweight = stpop], vce(cluster st_id)
+reg div_rate IMP_UNILATERAL i.st_id i.year t_* [aweight = stpop], vce(cluster st_id)
 outreg2 using "$output/tables_e.xls", title("Regression E.i-iii") symbol() keep(IMP_UNILATERAL) excel append
 
-/* Regression iii */
 
-qui forval i = 1/51 {
-    gen tt_square_`i' = tt_linear_`i'^2
-}
-reg div_rate IMP_UNILATERAL i.year i.st_id tt_linear_* tt_square_* [aweight = stpop], vce(cluster st_id)
+/* Regression iii */
+reg div_rate IMP_UNILATERAL i.st_id i.year t_* t2_* [aweight = stpop], vce(cluster st_id)
 outreg2 using "$output/tables_e.xls", title("Regressions E.i-iii") symbol() keep(IMP_UNILATERAL) excel append
 
 save "$data/Epset_4.dta", replace
 
-*Interpret the results of all 3 regressions. Can you think of a reason for the results to change across specifications? Under which assumption should these results be the same?
+
+
+/* The first regression controls for state and year differences yiels an estimate of -.055 suggesting that the introduction of unilateral laws decreased divorce rates by .055‰ but the result is very insignificant (p-value = .718). There is no clear evidence that unilateral divorce law had an effect on divorce rates in this regression.
+The second regression adds state-specific linear time trends to regression i. The estimate for IMP_UNILATERAL goes up to 0.477, and the coefficient is statistically significant at the 5%. So once we control for linear time trends the regression finds a significant increase of 0.477 divorces per 1000 people after the unilateral divorce law was implemented. 
+The third regression controls for both state-specific linear and quadratic time trends (in addition to state and year fixed effects). Here, the coefficient for unilateral is 0.33 and is also statistically significant.
+
+Because the initial regression returns such different coefficients than the second/third regression, it points to potential omitted variable bias in the first regression. If there are unobserved state specific time trends in divorce rates that are correlated with the timing of divorce law reforms, omitting them will bias the estimated effect of unilateral divorce laws. Friedberg argues that these trends may reflect social and demographic shifts.
+
+The estimates would be the same if the parallel trends assumption held perfectly, as the divorce time trends would be identical across reformed and control states.  
+ */
+ 
 
 *****************************************************************************
 /*Question f*/
@@ -260,7 +272,7 @@ log close
 
 * Can you explain why the sign of the estimated effect has changed between the regression on Y and the one on Y4?
 
-* With a TWFE regression, the estimated coefficient on the treatement dummy  is a weighted average of multiple Difference-in-Difference estimators that compare timing groups to each other. Each DiD compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in some cases—such as in year 3 of our simulated dataset—the comparison group is already treated when the treatment group switches. Then, the treatment effect for the earlt-treated group at the later d period gets differenced out by the DID, hence the negative weights. Negative weights represent a threat for correct treatement effect estimation in case of heterogeneous effects, because they may produce a negative coefficient estimate while all the ATEs are positive (this is what happens in regressions Y2, Y3 and Y4). In our simulated dataset, however, regression Y assumes no heterogeneity by construction. Therefore, even though negative weights exist, they do not bias the coefficient estimate in this specific case.
+* With a TWFE regression, the estimated coefficient on the treatement dummy  is a weighted average of multiple Difference-in-Difference estimators. Each DiD compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in some cases—such as in year 3 of our simulated dataset—the comparison group is already treated when the treatment group switches. Then, the treatment effect for the earlt-treated group at the later d period gets differenced out by the DID, hence the negative weights. Negative weights represent a threat for correct treatement effect estimation in case of heterogeneous effects, because they may produce a negative coefficient estimate while all the ATEs are positive (this is what happens in regressions Y2, Y3 and Y4). In our simulated dataset, however, regression Y assumes no heterogeneity by construction. Therefore, even though negative weights exist, they do not bias the coefficient estimate in this specific case.
 
 *****************************************************************************
 /*Question h*/
@@ -283,6 +295,10 @@ graph export "$output/graph_h.png", replace
 
 *Briefly explain what is the analysis proposed by Goodman-Bacon (2021). Is there evidence of issues regarding negative weights?
 
+* Goodman and Bacon (2021) analyze a DiD design where units receive treatment at different times. They show that in such settings, the two-way fixed effects (TWFE) estimator is a weighted average of all possible two-group, two-period DiD estimates in the data—including comparisons between early and later adopters, among others. The weights assigned to each 2x2 DD estimate are proportional to the size of the timing groups and to the variance of the treatment indicator in each comparison. This variance is typically highest for units treated around the middle of the panel, making these comparisons more influential in the overall estimate. When treatment effects are constant over time, all weights are positive, and the TWFE estimator provides a clean variance-weighted average of treatment effects across groups. However, if treatment effects vary over time, negative weights can emerge. 
+* This happens because already-treated units sometimes serve as controls in later comparisons. The changes in their outcomes, which may be influenced by ongoing treatment, are subtracted, introducing bias when treatment effects evolve over time. While this does not violate the parallel trends assumption for untreated outcomes, it does indicate that we should be cautious when using TWFE estimators to summarize treatment effects. 
+* Our plot shows how the treatment effect (y axis) varies for different weight (x axis). We also include a marker to indicate the kind of comparison computed: timing groups (circle), always treated vs timing (triangle), and never treated vs timing (x). We observe in the plot that the largest weights are for comparison between never treated and timing states, and most weights are centered around 0.  Also, when we look at the decomposition, we note that most of the weights (around 88%) are for comparison of never treated vs timing. There is also a few negatives did estimate, but their impact on the overall estimate seems relatively small due to the small weight attached to them. 
+* Finally, we do not observe any clear issues related to negative weights in our case. While some negative weights are present, they are tied to DD estimates of relatively small magnitude. In contrast, the largest positive DD estimates correspond to positive weights, which reduces concerns about potential bias.
 
 *****************************************************************************
 /*Question i*/
@@ -302,19 +318,29 @@ gen D`k' = relative_udl == `k'
 }
 
 /* Point i*/
-eststo reg1: reghdfe div_rate D_* D0-D15 [aweight=stpop], absorb (i.st_id i.year) vce(clusted st_id)
-outreg2 using "$output/tables_i.xls", title("Regressions I.i-iii") symbol() estimates store reg1
+reghdfe div_rate D_* D0-D15 [aweight=stpop], absorb (i.st_id i.year) vce(clusted st_id) 
+
+estimates store reg1
+outreg2 using "$output/tables_i.xls", title("Regressions I.i-iii") symbol()replace
 
 /* Point ii*/
-eststo reg2: reghdfe div_rate D_* D0-D15 tt_linear_* [aweight=stpop], absorb (i.st_id i.year) vce(clusted st_id)
+reghdfe div_rate D_* D0-D15 tt_linear_* [aweight=stpop], absorb (i.st_id i.year) vce(clusted st_id)
+
 estimates store reg2
+outreg2 using "$output/tables_i.xls", title("Regressions I.i-iii") symbol()append
 
 /* Point iii*/
 reghdfe div_rate D_* D0-D15 tt_linear_* tt_square_* [aweight=stpop], absorb (st_id year) vce(clusted st_id)
+
 estimates store reg3
+outreg2 using "$output/tables_i.xls", title("Regressions I.i-iii") symbol()append
 
 *Interpret the results of all 3 regressions. What can we see in the behaviour of divorce rates through this analysis that was not possible in the single coefficient analysis?
 
+*The event study regression provides insights into the dynamic treatement effects  of the introduction of unilateral divorce laws on divorce rates.. The single coefficient analysis only allows to observe average effects over time, and it does not provide information about the underlying trends about this value. 
+* In the first specification, which excludes linear and quadratic state-specific time trends, the coefficients for several treatement leads are positive and significantly different from 0. This raises concerns about the validity of the parallel trends assumption. However, once state-specific linear and quadratic time trends are included, the  pre-treatment coefficient estimates become smaller in magnitude and statistically insignificant. 
+*All specification show overall significant positive effects immediately following the reform and for the years of early adoption, with declining values in the following years. The magnitude and significance of the post-treatment coefficients decline from specification (1) to (3), meaning that the first specification confounds treatement effects with state-specific time trends.
+*Overall, the results of the event-study support the findings of Wolfers (2006) in highlighting the dynamic behavior of the effect of unilateral divorce laws on divorce rates. Specifically, it seems clear that the effect peaks in the 3-5 years following implementation, as a result of the pent-up demand, while it tends to diminish in the following years. 
 
 *****************************************************************************
 /*Question j*/
@@ -326,7 +352,7 @@ coefplot (reg1, label("No Trends")) (reg2, label("Linear Trends")) (reg3, label(
         12 "1" 13 "2" 14 "3" 15 "4" 16 "5" 17 "6" ///
         18 "7" 19 "8" 20 "9" 21 "10" 22 "11" 23 "12" ///
         24 "13" 25 "14" 26 "15", angle(0)) xline(11, lpattern(dash) lcolor(gs8)) ciopts(recast(rcap))
-*Save graph
+graph export "$output/graph_j.png", replace
 		 
 *****************************************************************************
 /*Question k*/
@@ -349,7 +375,7 @@ matrix C = C \ A'
 matrix list C
 coefplot matrix(C[1]), se(C[2]) keep(D_* D*) vertical yline(0) xtitle("Years after law") ytitle("Estimated effect") ///
 				title("Divorce rate") xlabel(, alternate)
-*Save graph
+graph export "$output/graph_li.png", replace
 				
 *Linear time-trends
 eventstudyinteract div_rate D_* D0-D15 [aweight=stpop], cohort(lfdivlaw) control_cohort(outofperiod_udl) absorb(st_id year) covariates(tt_linear_*) vce(cluster st_id)
@@ -360,7 +386,7 @@ matrix C = C \ A'
 matrix list C
 coefplot matrix(C[1]), se(C[2]) keep(D_* D*) vertical yline(0) xtitle("Years after law") ytitle("Estimated effect") ///
 				title("Divorce rate") xlabel(, alternate)
-*Save graph
+graph export "$output/graph_lii.png", replace
 
 *Quadratic time-trends
 eventstudyinteract div_rate D_* D0-D15 [aweight=stpop], cohort(lfdivlaw) control_cohort(outofperiod_udl) absorb(st_id year) covariates(tt_linear_* tt_square_*) vce(cluster st_id)
@@ -371,10 +397,11 @@ matrix C = C \ A'
 matrix list C
 coefplot matrix(C[1]), se(C[2]) keep(D_* D*) vertical yline(0) xtitle("Years after law") ytitle("Estimated effect") ///
 				title("Divorce rate") xlabel(, alternate)
-*Save graph 
+graph export "$output/graph_liii.png", replace
 
 *Are your results consistent with the ones from the original paper? 
-
+*The results obtained with the implementation from the Sun and Abraham (2021) event-study estimation are overall consistent with the ones presented by Wolfers (2006). Specifically, they confirm the fact divorce law reform led to an immediate spike in the divorce rate that dissipates over time. Although, one aspect that seemed puzzling in Wolfer's analysis was the fact that the coefficients of some long-run leads were negative and statistically significant. By applying the Sun and Abraham correction, the declining trend is still present in the coefficients for the late years after implementation, but none of those is statistically different from zero.
 
 *Briefly explain what kind of correction your proposed algorithm is performing.
+
 * Sun and Abraham (2021) underline the fact in settings with heterogenous treatement effects and variation in treatement timing across units, using the estimates of relative periods coefficients as measures of dynamic treatement effects may lead to misleading results. Specifically, each of these coefficients can be expressed as a weighted average of cohort-specific effects from both its own relative period and other relative periods; therefore, the estimate is contaminated by effects from other periods and other cohorts. If treatement is heterogenous across cohorts in terms of effect or timing, the coefficient estimate will no longer be a reliable indicator of treatement effect at relative time l only. To correct for this, the authors propose interaction-weighted estimators (IW). IW estimators are formed by first estimating cohort average treatement effects for each cohort at the relative time l, and calculating their weighted average using as weights each cohort's share. The algorithm in eventstudyinteract automates the estimation of these weights and returns estimators that are robust to heterogenous treatement effects. 
