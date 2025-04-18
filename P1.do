@@ -260,7 +260,7 @@ log close
 
 * Can you explain why the sign of the estimated effect has changed between the regression on Y and the one on Y4?
 
-* With a TWFE regression, the estimated coefficient on the treatement dummy  is "a weighted average of all possible 2x2 DD estimators that compare timing groups to each other". Each DiD compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in some cases—such as in year 3 of our simulated dataset—the comparison group is already treated when the treatment group switches. Then, the treatment effect for the earlt-treated group at the later d period gets differenced out by the DID, hence the negative weights. Negative weights represent a threat for correct treatement effect estimation in case of heterogeneous effects, because they may produce a negative coefficient estimate while all the ATEs are positive (this is what happens in regressions Y2, Y3 and Y4). In our simulated dataset, however, regression Y assumes no heterogeneity by construction. Therefore, even though negative weights exist, they do not bias the coefficient estimate in this specific case.
+* With a TWFE regression, the estimated coefficient on the treatement dummy  is a weighted average of multiple Difference-in-Difference estimators that compare timing groups to each other. Each DiD compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in some cases—such as in year 3 of our simulated dataset—the comparison group is already treated when the treatment group switches. Then, the treatment effect for the earlt-treated group at the later d period gets differenced out by the DID, hence the negative weights. Negative weights represent a threat for correct treatement effect estimation in case of heterogeneous effects, because they may produce a negative coefficient estimate while all the ATEs are positive (this is what happens in regressions Y2, Y3 and Y4). In our simulated dataset, however, regression Y assumes no heterogeneity by construction. Therefore, even though negative weights exist, they do not bias the coefficient estimate in this specific case.
 
 *****************************************************************************
 /*Question h*/
@@ -279,9 +279,10 @@ outreg2 using "$output/tables_h.xls", title("Regression H") symbol() excel repla
 
 /* Point iii*/
 bacondecomp div_rate IMP_UNILATERAL [aweight = init_stpop], stub (Bacon_)
-*Modify labeling
+graph export "$output/graph_h.png", replace
 
 *Briefly explain what is the analysis proposed by Goodman-Bacon (2021). Is there evidence of issues regarding negative weights?
+
 
 *****************************************************************************
 /*Question i*/
