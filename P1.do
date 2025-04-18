@@ -243,7 +243,7 @@ reg Y4 D i.state i.year
 outreg2 using "$output/tables_f.xls", title("Regressions F") symbol() excel append
 
 * Is it possible to estimate the treatment coefficient consistently in each of these cases?
-* In settings with staggered treatment implementation, regressions relying on a single treatment coefficient may yield biased estimates. In our simulated dataset, we construct four potential outcomes to examine this issue. We want to identify the treatment effect by estimating the coefficient on a treatment dummy variable. The first simulated outcome, Y, simulates a situation where outcome is defined in the same way for state 1 and 2, despite the staggered treatement timing. Both states experience an outcome increase of 0.05 due to treatement. The corresponding regression correctly estimate this result, returning a coefficient of 0.0566 significant at the 10% level. In the second specification (Y2), heterogeneity is introduced: while the treatment effect remains 0.05 in State 1, State 2 experiences an additional increase of 0.3 in the outcome of interest in year 3. This extra shift may reflect either state-specific time trends or dynamic treatment effects. Similarly, the third and fourth outcomes (Y3 and Y4) introduce additional increases of 0.4 and 0.5 in State 2 relative to State 1 in year 3. This heterogenity induces a bias in the treatement coefficient estimate, which becomes negative and statistically insignifican. Moreover, the bias seems to be increasing with twith the size of the uncontrolled-for differential effect in State 2. 
+* In settings with staggered treatment implementation, regressions relying on a single treatment coefficient may yield biased estimates. In our simulated dataset, we construct four potential outcomes to examine this issue. We want to identify the treatment effect by estimating the coefficient on a treatment dummy variable. The first simulated outcome, Y, simulates a situation where outcome is defined in the same way for state 1 and 2, despite the staggered treatement timing. Both states experience an outcome increase of 0.05 due to treatement. The corresponding regression correctly estimate this result, returning a coefficient of 0.0566 significant at the 10% level. In the second specification (Y2), heterogeneity is introduced: while the treatment effect remains 0.05 in State 1, State 2 experiences an additional increase of 0.3 in the outcome of interest in year 3. This extra shift may reflect either state-specific time trends or dynamic treatment effects. Similarly, the third and fourth outcomes (Y3 and Y4) introduce additional increases of 0.4 and 0.5 in State 2 relative to State 1 in year 3. This heterogenity induces a bias in the treatement coefficient estimate, which becomes negative and statistically insignifican. Moreover, the bias seems to be increasing with twith the size of the uncontrolled-for differential effect in State 2. If control and treatment groups have different underlying time trends or the effect of treatement is dynamic, and the regression doesn't model those trends, these will bias the estimate of the treatement effect. In our simulation, any additional change in outcome not due to the treatement in state 2 (which serves as the control group) is considered in the counterfactual for state 1, leading to a downward bias in the treatement estimate.
 
 *****************************************************************************
 /*Question g*/
@@ -258,28 +258,9 @@ twowayfeweights Y3 state year D, type(feTR)
 twowayfeweights Y4 state year D, type(feTR)
 log close
 
-* Can you explain why the sign of the estimated effect has changed between the regression on Y and the one on Y 4?
+* Can you explain why the sign of the estimated effect has changed between the regression on Y and the one on Y4?
 
-*
-*command estimates the weights and sensitivity measures attached to the fixed-effects regression under the common trends assumption. 
-*With a TWFE regression, the estimate of the effect of a treatement on an outcome is given by the estimated coeffciient of the treatement dummy. The estimated coefficient is a weighted sum of several DiD. Each DID compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in case the control group has already been treated at the moment when the treatement one switches to treated, 
-*The negative weights are an issue when the ATEs are heterogeneous across groups or periods. Then, one could have that β fe is negative while all the ATEs are positive, so β fe is not robust to heterogeneous effects
-
-The coefficients of the treatement dummies estimated by the respective regressions are negative, decreasing and not statistically significant. Meaning that as the additional effect on outcome in state 2 given by the previous implementation increases, the effect on outcome attributed by the treatement dummy 
-
-
-*each version simulates a progressively larger deviation from the parallel trends assumption: state-specific time trends
-These regressions include only a dummy for treatment (D), without adjusting for differing trends across states.
-simulate increasingly stronger upward trends in state 2 in year 3.
-However, state 2 is still in the control group in that year
-Because state 2 (control) sees a jump in outcomes not due to treatment, it makes the treated state's increase look smaller by comparison.
-estimated treatment effect is biased downward
-
-The regression can't separate the treatment effect from the uncontrolled-for trend, so it attributes part of the difference incorrectly, assuming ll treatment/control groups follow the same trend in the absence of treatment.
-
-If control and treatment groups have different underlying time trends, and you don't model those trends, you can get biased treatment effects.
-
-In year 3, the regression is comparing state 1's change (from untreated → treated) to state 2's change (already treated → still treated). Any additional change in state 2 (e.g., due to trend or treatment dynamics) will be wrongly attributed as the counterfactual for state 1.
+* With a TWFE regression, the estimated coefficient on the treatement dummy  is "a weighted average of all possible 2x2 DD estimators that compare timing groups to each other". Each DiD compares the evolution of outcomes over time between two groups: one that changes treatement status and one that does not. However, in some cases—such as in year 3 of our simulated dataset—the comparison group is already treated when the treatment group switches. Then, the treatment effect for the earlt-treated group at the later d period gets differenced out by the DID, hence the negative weights. Negative weights represent a threat for correct treatement effect estimation in case of heterogeneous effects, because they may produce a negative coefficient estimate while all the ATEs are positive (this is what happens in regressions Y2, Y3 and Y4). In our simulated dataset, however, regression Y assumes no heterogeneity by construction. Therefore, even though negative weights exist, they do not bias the coefficient estimate in this specific case.
 
 *****************************************************************************
 /*Question h*/
